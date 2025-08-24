@@ -64,10 +64,12 @@ def generate_with_confidence(prompt, model, tokenizer, max_new_tokens=50):
     # Tokenize input
     inputs = tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
     input_ids = inputs["input_ids"]
-    
+    attention_mask = inputs["attention_mask"]  # Add this line
+
     # Generate output with scores
     outputs = model.generate(
         input_ids,
+        attention_mask=attention_mask,  # Pass the attention mask here
         max_new_tokens=max_new_tokens,
         return_dict_in_generate=True,
         output_scores=True,
@@ -114,32 +116,35 @@ def preprocess_query(q):
 def dense_ret(q, top_k=5):
     emb = embedder.encode([q]).astype(np.float32)
     dist, idxs = faiss_index.search(emb, top_k)
-    return [(chunks_list[i], 1/(1+dist[0][j])) for j,i in enumerate(idxs[0])]
+    if len(idxs[0]) == 0:  # Check if no results are returned
+        return []
+    return [(chunks_list[i], 1/(1+dist[0][j])) for j, i in enumerate(idxs[0]) if i < len(chunks_list)]
 
 def sparse_ret(q, top_k=5):
     toks = [t.lstrip("Ġ") for t in bm25_tokenizer.tokenize(q)]
     scores = bm25_model.get_scores(toks)
     top_idx = np.argsort(scores)[::-1][:top_k]
-    return [(chunks_list[i], scores[i]) for i in top_idx]
+    return [(chunks_list[i], scores[i]) for i in top_idx if i < len(chunks_list)]
 
-def hybrid_retrieve(query, top_k=5, alpha=0.7):
+def hybrid_retrieve(query, top_k=3, alpha=0.7):
     q = preprocess_query(query)
     d = dense_ret(q, top_k)
     s = sparse_ret(q, top_k)
+    if not d and not s:  # Check if both are empty
+        return []
     combined = {}
-    # normalize
+    # Normalize and combine results
     if d:
-        m = max([sc for _,sc in d])
-        d = [(t,sc/m) for t,sc in d]
+        m = max([sc for _, sc in d])
+        d = [(t, sc/m) for t, sc in d]
     if s:
-        m = max([sc for _,sc in s])
-        s = [(t,sc/m) for t,sc in s]
-    for t,sc in d:
-        combined[t] = alpha*sc
-    for t,sc in s:
-        combined[t] = combined.get(t,0) + (1-alpha)*sc
-    top = sorted(combined.items(), key=lambda x:x[1], reverse=True)[:top_k]
-    # return list of (text, score)
+        m = max([sc for _, sc in s])
+        s = [(t, sc/m) for t, sc in s]
+    for t, sc in d:
+        combined[t] = alpha * sc
+    for t, sc in s:
+        combined[t] = combined.get(t, 0) + (1 - alpha) * sc
+    top = sorted(combined.items(), key=lambda x: x[1], reverse=True)[:top_k]
     return top
 
 def answer_with_rag(question):
@@ -149,8 +154,15 @@ def answer_with_rag(question):
     context = " ".join([t for t, _ in retrieved])
     prompt = f"Answer the question based on the context below.\n\nContext: {context}\n\nQuestion: {question}\nAnswer:"
 
-    inputs = ft_tokenizer.encode(prompt, return_tensors="pt")
-    out = ft_model.generate(inputs, max_new_tokens=80)
+    inputs = ft_tokenizer(prompt, return_tensors="pt")
+    input_ids = inputs["input_ids"]
+    attention_mask = inputs["attention_mask"]  # Add this line
+
+    out = ft_model.generate(
+        input_ids,
+        attention_mask=attention_mask,  # Pass the attention mask here
+        max_new_tokens=80
+    )
     raw_text = ft_tokenizer.decode(out[0], skip_special_tokens=True)
 
     # Clean the output to extract only the final answer line
