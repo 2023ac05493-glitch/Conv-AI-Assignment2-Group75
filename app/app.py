@@ -42,10 +42,10 @@ faiss_index = faiss.read_index(os.path.join(RAG_DIR, "faiss_index.bin"))
 import torch
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-
 # Load embedder from local path to avoid Hugging Face rate limits (for Streamlit Cloud)
 LOCAL_EMBEDDER_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", "models", "all-MiniLM-L6-v2"))
 embedder = SentenceTransformer(LOCAL_EMBEDDER_PATH)
+
 if any(param.device.type == 'meta' for param in embedder.parameters()):
     embedder = embedder.to_empty(device=device)
 else:
