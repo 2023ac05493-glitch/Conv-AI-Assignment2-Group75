@@ -113,14 +113,14 @@ def preprocess_query(q):
     toks = [t for t in toks if t not in sw and len(t) > 2]
     return " ".join(toks)
 
-def dense_ret(q, top_k=5):
+def dense_ret(q, top_k=3):
     emb = embedder.encode([q]).astype(np.float32)
     dist, idxs = faiss_index.search(emb, top_k)
     if len(idxs[0]) == 0:  # Check if no results are returned
         return []
     return [(chunks_list[i], 1/(1+dist[0][j])) for j, i in enumerate(idxs[0]) if i < len(chunks_list)]
 
-def sparse_ret(q, top_k=5):
+def sparse_ret(q, top_k=3):
     toks = [t.lstrip("Ġ") for t in bm25_tokenizer.tokenize(q)]
     scores = bm25_model.get_scores(toks)
     top_idx = np.argsort(scores)[::-1][:top_k]
@@ -149,7 +149,7 @@ def hybrid_retrieve(query, top_k=3, alpha=0.7):
 
 def answer_with_rag(question):
 
-    retrieved = hybrid_retrieve(question, top_k=5)
+    retrieved = hybrid_retrieve(question, top_k=3)
 
     context = " ".join([t for t, _ in retrieved])
     prompt = f"Answer the question based on the context below.\n\nContext: {context}\n\nQuestion: {question}\nAnswer:"
