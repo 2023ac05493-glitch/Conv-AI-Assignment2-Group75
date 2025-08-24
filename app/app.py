@@ -46,10 +46,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 LOCAL_EMBEDDER_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", "models", "all-MiniLM-L6-v2"))
 embedder = SentenceTransformer(LOCAL_EMBEDDER_PATH)
 
-if any(param.device.type == 'meta' for param in embedder.parameters()):
-    embedder = embedder.to_empty(device=device)
-else:
-    embedder = embedder.to(device)
+embedder = embedder.to_empty(device=device)
+
 
 
 # Build BM25
@@ -185,6 +183,6 @@ if st.button("Generate Answer") and len(question) > 0:
     st.markdown(f"**Answer ({mode}):**  {answer}")
     st.markdown(f"**Confidence Score:**  {confidence:.3f}")
     st.markdown(f"**Response Time:**  {elapsed:.2f}s")
-    
+
 
 
