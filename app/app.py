@@ -22,6 +22,12 @@ RAG_DIR    = os.path.abspath(os.path.join(BASE_DIR, "..", "models", "rag_model")
 ft_tokenizer = AutoTokenizer.from_pretrained(FT_PATH, local_files_only=True)
 ft_model     = AutoModelForCausalLM.from_pretrained(FT_PATH, local_files_only=True)
 
+# Fix meta tensors using to_empty for fine-tuned model
+if any(param.device.type == 'meta' for param in ft_model.parameters()):
+    import torch
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    ft_model = ft_model.to_empty(device=device)
+
 # === Load RAG components ===
 # Load chunk texts
 with open(os.path.join(RAG_DIR,"chunks.json"), "r") as f:
@@ -39,18 +45,10 @@ embedder = SentenceTransformer(
     "sentence-transformers/all-MiniLM-L6-v2",
     device=device   # force CPU or GPU
 )
- 
- 
 
-# Fix meta tensors to avoid NotImplementedError during .to(device)
-import torch
-for name, param in embedder.named_parameters():
-    if param.device.type == 'meta':
-        param.data = torch.empty_like(param)
-
-for name, buffer in embedder.named_buffers():
-    if buffer.device.type == 'meta':
-        buffer.data = torch.empty_like(buffer)
+# Fix meta tensors using to_empty to avoid NotImplementedError
+if any(param.device.type == 'meta' for param in embedder.parameters()):
+    embedder = embedder.to_empty(device=device)
 
 
 # Build BM25
