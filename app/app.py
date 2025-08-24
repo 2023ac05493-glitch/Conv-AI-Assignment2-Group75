@@ -11,6 +11,8 @@ import json
 import re
 from nltk.corpus import stopwords
 import torch.nn.functional as F
+import nltk
+nltk.download('stopwords')
 
 # from fine_tuning import generate_with_confidence 
 # === Build absolute paths =====
