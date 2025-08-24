@@ -38,17 +38,16 @@ faiss_index = faiss.read_index(os.path.join(RAG_DIR, "faiss_index.bin"))
 
 # Load embedding model
 # embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
 import torch
 device = "cuda" if torch.cuda.is_available() else "cpu"
- 
-embedder = SentenceTransformer(
-    "sentence-transformers/all-MiniLM-L6-v2",
-    device=device   # force CPU or GPU
-)
 
-# Fix meta tensors using to_empty to avoid NotImplementedError
+# Load embedder without device argument, then move to device if needed
+embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 if any(param.device.type == 'meta' for param in embedder.parameters()):
     embedder = embedder.to_empty(device=device)
+else:
+    embedder = embedder.to(device)
 
 
 # Build BM25
